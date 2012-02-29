@@ -1,10 +1,11 @@
-CXX = g++ -lserial
+CXX = g++ 
 CFLAGS = -Wall -g 
-CXXFLAGS = `pkg-config opencv cvblob --cflags`
-LDFLAGS = `pkg-config opencv cvblob --libs`
-all = blobdetect 
+CXXFLAGS = -ggdb `pkg-config --cflags opencv cvblob`
+LDFLAGS = `pkg-config --libs opencv cvblob`
+all = blobdetect
 
-all: $(all)
+all: 
+	$(CXX) $(CXXFLAGS) -o $(all) blobdetect.cpp $(LDFLAGS) -lserial
 
 .PHONY: clean
 

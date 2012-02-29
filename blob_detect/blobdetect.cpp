@@ -18,9 +18,10 @@ int main(void)
 
   cvNamedWindow("red_object_tracking", CV_WINDOW_AUTOSIZE);
 
-  CvCapture *capture = cvCaptureFromCAM(0);
+  CvCapture *capture = cvCaptureFromCAM(CV_CAP_ANY);
   cvGrabFrame(capture);
   IplImage *img = cvRetrieveFrame(capture);
+
 
   CvSize imgSize = cvGetSize(img);
   int w = imgSize.width;

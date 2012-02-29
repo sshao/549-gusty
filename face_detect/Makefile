@@ -1,10 +1,11 @@
-CXX = g++ -lserial
+CXX = g++ 
 CFLAGS = -Wall -g 
-CXXFLAGS = `pkg-config opencv --cflags`
-LDFLAGS = `pkg-config opencv --libs`
-all = facedetect 
+CXXFLAGS = -ggdb `pkg-config --cflags opencv`
+LDFLAGS = `pkg-config --libs opencv`
+all = facedetect
 
-all: $(all)
+all: 
+	$(CXX) $(CXXFLAGS) -o $(all) facedetect.cpp $(LDFLAGS) -lserial
 
 .PHONY: clean
 

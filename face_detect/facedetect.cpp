@@ -1,9 +1,8 @@
-#include "opencv2/objdetect/objdetect.hpp"
-#include "opencv2/highgui/highgui.hpp"
-#include "opencv2/imgproc/imgproc.hpp"
-
 #include <iostream>
 #include <stdio.h>
+
+#include "cv.h"
+#include "highgui.h"
 
 #include <SerialStream.h>
 
@@ -73,7 +72,7 @@ int main( int argc, const char** argv )
             break;
     }
 
-    destroyWindow("result");
+    cvDestroyWindow("result");
 
     return 0;
 }
@@ -118,13 +117,14 @@ void detectAndDraw( Mat& img )
         circle( img, center, radius, CV_RGB(0,0,255), 3, 8, 0 );
 
         cout << "(" << center.x << "," << center.y << endl;
+/*
         // Send x coordinates, MSB and LSB respectively
         ardu << (center.x >> 8) && 0xff;
         ardu << center.x && 0xff;
         // Sned y coordinates
         ardu << (center.y >> 8) && 0xff;
         ardu << center.y && 0xff;
-
+*/
         // Label coordinates
         /*
         // TODO better way of allocating space
