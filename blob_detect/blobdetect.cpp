@@ -8,8 +8,8 @@
 #include <cvblob.h>
 #include <SerialStream.h>
 
-#define PORT "/dev/ttyUSB0"
-#define BAUDRATE (SerialStreamBuf::BAUD_19200)
+#define PORT "/dev/ttyACM0"
+#define BAUDRATE (SerialStreamBuf::BAUD_9600)
 
 using namespace cvb;
 using namespace cv;
@@ -97,7 +97,7 @@ int main(void)
         //cvRenderTracks(tracks, frame, frame, CV_TRACK_RENDER_ID
         //    |CV_TRACK_RENDER_BOUNDING_BOX);
 
-        int x_coord, y_coord;
+        uint16_t x_coord, y_coord;
 
         for (CvBlobs::const_iterator it=blobs.begin(); it != blobs.end(); 
             it++) {
@@ -107,10 +107,29 @@ int main(void)
             cout << "(" << x_coord << ", " << y_coord << ")" << endl;
 
             // Send coordinates to arduino
+            uint32_t x_temp = (x_coord * 15) / 320;
+            uint32_t y_temp = (y_coord * 15) / 240;
+
+            uint8_t temp = ((x_temp & 0xf) << 4) | (y_temp & 0xf);
+            ardu << temp;
+
+            cout << "temp: " << (uint32_t) temp << endl;
+            /*
             ardu << ((x_coord >> 8) & 0xff);
             ardu << (x_coord & 0xff);
             ardu << ((y_coord >> 8) & 0xff);
             ardu << (y_coord & 0xff);
+            */
+
+            /*
+            int j;
+            for (j = 0; j < 8; j++) {
+                uint8_t a;
+                ardu >> a;
+                cout << a;
+            }
+            cout << endl;
+            */
         }
 
         cvShowImage("red_object_tracking", frame);
