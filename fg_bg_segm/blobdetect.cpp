@@ -31,6 +31,7 @@ int main(int argc, char * argv[])
     unsigned int min_dist_sqrd_change = 5;
     unsigned int bg_subtractor_history = 50;
     unsigned int bg_subtractor_threshold = 16;
+    unsigned int area_diff_thresh = 50;
     
     bool bg_subtractor_shadow_detect = false;
 
@@ -38,18 +39,19 @@ int main(int argc, char * argv[])
         cout << "DEFAULT ";
     }
     // No error checking here, probably should...
-    else if (argc == 7) {
+    else if (argc == 8) {
         frame_width = atoi(argv[1]);
         frame_height = atoi(argv[2]); 
         percentage = atoi(argv[3]);
         min_dist_sqrd_change = atoi(argv[4]);
         bg_subtractor_history = atoi(argv[5]);
         bg_subtractor_threshold = atoi(argv[6]);
+        area_diff_thresh = atoi(argv[7]);
     }
     else {
         cout << "Usage: ./blobdetect <width> <height> <percentage> "
             << "<min dist sqrd change> <bg subtractor history> "
-            << "<bg subtractor threshold>" << endl;
+            << "<bg subtractor threshold> <area difference threshold>" << endl;
         cout << "\tIf no parameters are specified, " <<
             "will use defaults." << endl;
         cout << "\twidth: resolution width" << endl;
@@ -62,6 +64,9 @@ int main(int argc, char * argv[])
             << "background subtractor" << endl;
         cout << "\tbg subtractor threshold: threshold of the bg/fg "
             << "segmentation" << endl;
+        cout << "\tarea difference threshold: if difference between current"
+            << " largest blob's area and next larget blob is greater than "
+            << " this value, do not consider any more blobs" << endl;
         return 0;
     }
     
@@ -73,16 +78,18 @@ int main(int argc, char * argv[])
         << min_dist_sqrd_change << endl;
     cout << "\tBG Subtractor History = " << bg_subtractor_history << endl;
     cout << "\tBG Subtractor Threshold = " << bg_subtractor_threshold << endl;
+    cout << "\tArea Difference Threshold = " << area_diff_thresh << endl;
+    cout << endl;
     
     // Set up serial port
     serial_setup();
 
     // Load face detection cascade
-    initializeFaceDetection();
+    //initializeFaceDetection();
 
     // Open camera
     CvCapture *capture = cvCaptureFromCAM(0);
-    //CvCapture *capture = cvCaptureFromFile("walk.avi");
+    //CvCapture *capture = cvCaptureFromFile("out.avi");
 
     if (!capture) {
 	    cerr << "Error opening camera" << endl;
@@ -92,6 +99,11 @@ int main(int argc, char * argv[])
     // Resize window for faster processing
     cvSetCaptureProperty( capture, CV_CAP_PROP_FRAME_WIDTH, frame_width );
     cvSetCaptureProperty( capture, CV_CAP_PROP_FRAME_HEIGHT, frame_height );
+
+    // Initialize Video writer
+    CvVideoWriter *writer = NULL;
+    writer = cvCreateVideoWriter("out.avi", CV_FOURCC('x', 'v', 'i', 'd'),
+        25, cvSize(frame_width, frame_height));
 
     // Create window to render blobs on
     cvNamedWindow("motion_tracking", CV_WINDOW_AUTOSIZE);
@@ -103,8 +115,8 @@ int main(int argc, char * argv[])
     //cvNamedWindow("bgimg", CV_WINDOW_AUTOSIZE);
     //cvMoveWindow("bgimg", frame_width<<1, 0);
     
-    cvNamedWindow("facedetect", CV_WINDOW_AUTOSIZE);
-    cvMoveWindow("facedetect", frame_width<<2, 0);
+    //cvNamedWindow("facedetect", CV_WINDOW_AUTOSIZE);
+    //cvMoveWindow("facedetect", frame_width<<2, 0);
   
     // Grab capture from video
     cvGrabFrame(capture);
@@ -182,12 +194,17 @@ int main(int argc, char * argv[])
             blobs2.insert(blobList[i]);
             cur_avg_x += /*(*blobList[i].second).area * */(*blobList[i].second).centroid.x;
             cur_avg_y += /*(*blobList[i].second).area * */(*blobList[i].second).centroid.y;
-            // Print out areas
-            //cout << "[" << blobList[i].first << "] -> " << (*blobList[i].second).area << endl;
+
+            // Print areas
+            cout << "[USED] blob area: " << (*blobList[i].second).area  
+                << ", blob bounding rect coords: (" 
+                << (*blobList[i].second).minx << ", " << (*blobList[i].second).miny << "), ("
+                << (*blobList[i].second).maxx << ", " << (*blobList[i].second).maxy << ")"
+                << endl;
             
             // If the next blob is way smaller than this one, stop
             if ((i != blobList.size()-1) && 
-                (((*blobList[i].second).area - (*blobList[i+1].second).area) > 10)) {
+                (((*blobList[i].second).area - (*blobList[i+1].second).area) > area_diff_thresh)) {
                 break;
             }
         }
@@ -196,7 +213,18 @@ int main(int argc, char * argv[])
             cur_avg_y /= blobs2.size();
         }
 
-        cout << "blobs used: " << (blobs2.size() * percentage)/100 << endl;
+        cout << "blobs used: " << blobs2.size() << endl;
+
+        unsigned int unused_blob_ctr = blobs2.size();
+
+        while ((unused_blob_ctr < 50) && (unused_blob_ctr < blobList.size())) {
+            cout << "[UNUSED] blob area: " << (*blobList[unused_blob_ctr].second).area  
+                << ", blob bounding rect coords: (" 
+                << (*blobList[unused_blob_ctr].second).minx << ", " << (*blobList[unused_blob_ctr].second).miny << "), ("
+                << (*blobList[unused_blob_ctr].second).maxx << ", " << (*blobList[unused_blob_ctr].second).maxy << ")"
+                << endl;
+            unused_blob_ctr++;
+        }
         
         /*
         t = (double) cvGetTickCount() - t;
@@ -257,6 +285,9 @@ int main(int argc, char * argv[])
         
         cvShowImage("motion_tracking", frame);
 
+        // Write to video
+        cvWriteFrame(writer, frame);
+
         // Release objects
         cvReleaseImage(&labelImg);
         cvReleaseImage(&segmentated);
@@ -278,6 +309,9 @@ int main(int argc, char * argv[])
 
     cvDestroyWindow("motion_tracking");
     cvReleaseCapture(&capture);
+    // Release video writer
+    if (writer)
+        cvReleaseVideoWriter(&writer);
 
     return 0;
 }
