@@ -5,7 +5,7 @@ LDFLAGS = `pkg-config --libs opencv cvblob`
 all = blobdetect
 
 all: 
-	$(CXX) $(CXXFLAGS) -o $(all) serial.cpp blobdetect.cpp $(LDFLAGS) -lserial
+	$(CXX) $(CXXFLAGS) -o $(all) serial.cpp facedetect.cpp blobdetect.cpp $(LDFLAGS) -lserial
 
 .PHONY: clean
 

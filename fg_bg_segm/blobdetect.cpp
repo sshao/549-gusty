@@ -7,6 +7,7 @@
 #include "opencv2/core/core.hpp"
 #include "opencv2/video/background_segm.hpp"
 #include "serial.h"
+#include "facedetect.h"
 #include "blobdetect.h"
 
 using namespace cvb;
@@ -63,8 +64,12 @@ int main(int argc, char * argv[])
     // Set up serial port
     serial_setup();
 
+    // Load face detection cascade
+    initializeFaceDetection();
+
     // Open camera
     CvCapture *capture = cvCaptureFromCAM(0);
+    //CvCapture *capture = cvCaptureFromFile("walk.avi");
 
     if (!capture) {
 	    cerr << "Error opening camera" << endl;
@@ -76,7 +81,17 @@ int main(int argc, char * argv[])
     cvSetCaptureProperty( capture, CV_CAP_PROP_FRAME_HEIGHT, frame_height );
 
     // Create window to render blobs on
-    namedWindow("motion_tracking", CV_WINDOW_AUTOSIZE);
+    cvNamedWindow("motion_tracking", CV_WINDOW_AUTOSIZE);
+    cvMoveWindow("motion_tracking", 0, 0);
+    
+    cvNamedWindow("fgmask", CV_WINDOW_AUTOSIZE);
+    cvMoveWindow("fgmask", frame_width, 0);
+    
+    cvNamedWindow("bgimg", CV_WINDOW_AUTOSIZE);
+    cvMoveWindow("bgimg", frame_width<<1, 0);
+    
+    cvNamedWindow("facedetect", CV_WINDOW_AUTOSIZE);
+    cvMoveWindow("facedetect", frame_width<<2, 0);
   
     // Grab capture from video
     cvGrabFrame(capture);
@@ -85,7 +100,9 @@ int main(int argc, char * argv[])
     CvSize imgSize = cvGetSize(img);
     IplImage *frame = cvCreateImage(imgSize, img->depth, img->nChannels);
 
-    BackgroundSubtractorMOG2 bg_model;
+    // (int history, float varThreshold, bool bShadowDetection=1)
+    // length of the history, varThreshold (typical val is 4 sigma, 4*4=16), ...
+    BackgroundSubtractorMOG2 bg_model(50, 5, 0);
 
     bool quit = false;
     
@@ -98,9 +115,12 @@ int main(int argc, char * argv[])
 
         cvConvertScale(img, frame, 1, 0);
 
+        double t = (double) cvGetTickCount();
+
         Mat fgmask, bgimg;
+        Mat img_mat = Mat(img, true);
         // Learn current fg/bg: learning is always on (-1)
-        bg_model(Mat(img, true), fgmask, -1);
+        bg_model(img_mat, fgmask, -1);
         // Add to average background image
         bg_model.getBackgroundImage(bgimg);
 
@@ -108,6 +128,12 @@ int main(int argc, char * argv[])
         imshow("fgmask", fgmask);
         // Show the averaged background image
         imshow("bgimg", bgimg);
+
+        t = (double) cvGetTickCount () - t;
+        printf( "bg/fg segmentation time = %g ms \n",
+            t/((double)cvGetTickFrequency() * 1000.) );
+        
+        t = (double) cvGetTickCount();
 
         // Convert frame to have 8-bit depth, 1 channel (grayscale)
         IplImage fgmask_ipl = fgmask;
@@ -128,25 +154,33 @@ int main(int argc, char * argv[])
         copy(blobs.begin(), blobs.end(), back_inserter(blobList));
         sort(blobList.begin(), blobList.end(), cmpArea);
 
-        // Grab only the 1/FRAC_BLOBS_TO_RENDER largest blobs
+        // Consider at max only the 1/FRAC_BLOBS_TO_RENDER largest blobs
         // TODO what about the case of multiple people? 
         CvBlobs blobs2;
         unsigned int cur_avg_x = 0;
         unsigned int cur_avg_y = 0;
         // FIXME careful with the division/mult here...
-        cout << "using " << ((blobList.size() * percentage)/100) 
-            << " blobs" << endl;
         for (int i = 0; i < (blobList.size() * percentage)/100; i++) {
             blobs2.insert(blobList[i]);
             cur_avg_x += /*(*blobList[i].second).area * */(*blobList[i].second).centroid.x;
             cur_avg_y += /*(*blobList[i].second).area * */(*blobList[i].second).centroid.y;
             // Print out areas
             //cout << "[" << blobList[i].first << "] -> " << (*blobList[i].second).area << endl;
+            
+            // If the next blob is way smaller than this one, stop
+            if ((i != blobList.size()-1) && 
+                (((*blobList[i].second).area - (*blobList[i+1].second).area) > 10)) {
+                break;
+            }
         }
         if (blobs2.size() != 0) {
             cur_avg_x /= blobs2.size();
             cur_avg_y /= blobs2.size();
         }
+
+        t = (double) cvGetTickCount() - t;
+        printf( "blob detection/selection time = %g ms\n",
+            t/((double)cvGetTickFrequency()*1000.));
 
         // Render blobs 
         cvRenderBlobs(labelImg, blobs2, frame, frame, CV_BLOB_RENDER_BOUNDING_BOX);
@@ -155,6 +189,7 @@ int main(int argc, char * argv[])
         unsigned int x_diff = cur_avg_x - avg_x;
         unsigned int y_diff = cur_avg_y - avg_y;
         unsigned int dist_sqrd = x_diff * x_diff + y_diff * y_diff;
+        
         if (dist_sqrd > min_dist_sqrd_change) {
             avg_x = cur_avg_x;
             avg_y = cur_avg_y;
@@ -162,11 +197,12 @@ int main(int argc, char * argv[])
 
         // Draw avg point on frame
         cvCircle(frame, cvPoint(avg_x, avg_y), 5, CV_RGB(0, 0, 255), 3, 8, 0);
-//        cvSetAt(frame, cvScalar(255, 0, 0, 0), avg_y, avg_x);
 
-        uint16_t x_coord, y_coord;
+        // face detection
+        detectAndDraw( img_mat );
 
         // Send avg coordinates to arduino
+        uint16_t x_coord, y_coord;
         x_coord = cvRound(avg_x);
         y_coord = cvRound(avg_y);
         cout << "Blob avg coordinates: (" << x_coord << ", " << y_coord << ")" << endl;
@@ -199,6 +235,8 @@ int main(int argc, char * argv[])
         cvReleaseImage(&labelImg);
         cvReleaseImage(&segmentated);
         cvReleaseBlobs(blobs);
+
+        cout << endl;
 
         char k = cvWaitKey(10)&0xff;
         switch (k) {
