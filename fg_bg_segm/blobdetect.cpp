@@ -122,12 +122,12 @@ int main(int argc, char * argv[])
         // Learn current fg/bg: learning is always on (-1)
         bg_model(img_mat, fgmask, -1);
         // Add to average background image
-        bg_model.getBackgroundImage(bgimg);
+        //bg_model.getBackgroundImage(bgimg);
 
         // Show foreground mask
         imshow("fgmask", fgmask);
         // Show the averaged background image
-        imshow("bgimg", bgimg);
+        //imshow("bgimg", bgimg);
 
         t = (double) cvGetTickCount () - t;
         printf( "bg/fg segmentation time = %g ms \n",
