@@ -8,7 +8,7 @@ for (( w = 64; w <= 640; w += 64 ))
 do
     ((h = w * 3 / 4));
     mkdir -p lat-res-perc/$w-$h
-    for (( p = 1; p <= 20; p++ ))
+    for (( p = 5; p <= 25; p+= 5))
     do
         #echo "width = $w height = $h percentage = $p" | awk '$1=="width"{print $3,$6,$9}' >> lat-res-perc/$w-$h/$p.txt
         #echo ./blobdetect $w $h $p 5 50 16 50 & sleep 15; echo $!; kill $! | awk '$1=="total"{print $4,$5,$6,$7}' >> lat-res-perc/$w-$h/$p.txt
