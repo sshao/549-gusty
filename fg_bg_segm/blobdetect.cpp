@@ -89,7 +89,7 @@ int main(int argc, char * argv[])
 
     // Open camera
     CvCapture *capture = cvCaptureFromCAM(0);
-    //CvCapture *capture = cvCaptureFromFile("out.avi");
+    //CvCapture *capture = cvCaptureFromFile("test_video.avi");
 
     if (!capture) {
 	    cerr << "Error opening camera" << endl;
@@ -101,9 +101,11 @@ int main(int argc, char * argv[])
     cvSetCaptureProperty( capture, CV_CAP_PROP_FRAME_HEIGHT, frame_height );
 
     // Initialize Video writer
+    /*
     CvVideoWriter *writer = NULL;
     writer = cvCreateVideoWriter("out.avi", CV_FOURCC('x', 'v', 'i', 'd'),
         25, cvSize(frame_width, frame_height));
+    */
 
     // Create window to render blobs on
     cvNamedWindow("motion_tracking", CV_WINDOW_AUTOSIZE);
@@ -286,7 +288,7 @@ int main(int argc, char * argv[])
         cvShowImage("motion_tracking", frame);
 
         // Write to video
-        cvWriteFrame(writer, frame);
+        //cvWriteFrame(writer, frame);
 
         // Release objects
         cvReleaseImage(&labelImg);
@@ -310,8 +312,8 @@ int main(int argc, char * argv[])
     cvDestroyWindow("motion_tracking");
     cvReleaseCapture(&capture);
     // Release video writer
-    if (writer)
-        cvReleaseVideoWriter(&writer);
+    //if (writer)
+    //    cvReleaseVideoWriter(&writer);
 
     return 0;
 }
