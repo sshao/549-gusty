@@ -3,6 +3,7 @@
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
 #include <stdio.h>
+#include <cmath>
 #include <cvblob.h>
 #include "opencv2/core/core.hpp"
 #include "opencv2/video/background_segm.hpp"
@@ -23,15 +24,18 @@ bool cmpArea(const pair<CvLabel, CvBlob*> &p1,
     return p1.second->area > p2.second->area;
 }
 
+unsigned int ctr;
+
 int main(int argc, char * argv[])
 {
     unsigned int frame_width = 320;
     unsigned int frame_height = 240;
     unsigned int percentage = 5;
-    unsigned int min_dist_sqrd_change = 5;
+    unsigned int min_dist_sqrd_change = 50;
     unsigned int bg_subtractor_history = 50;
-    unsigned int bg_subtractor_threshold = 16;
-    unsigned int area_diff_thresh = 50;
+    unsigned int bg_subtractor_threshold = 30;
+    double area_diff_thresh = 0.30;
+    int last_x, last_y;
     
     bool bg_subtractor_shadow_detect = false;
 
@@ -46,7 +50,7 @@ int main(int argc, char * argv[])
         min_dist_sqrd_change = atoi(argv[4]);
         bg_subtractor_history = atoi(argv[5]);
         bg_subtractor_threshold = atoi(argv[6]);
-        area_diff_thresh = atoi(argv[7]);
+        area_diff_thresh = ((double) atoi(argv[7]))/100.0;
     }
     else {
         cout << "Usage: ./blobdetect <width> <height> <percentage> "
@@ -64,9 +68,9 @@ int main(int argc, char * argv[])
             << "background subtractor" << endl;
         cout << "\tbg subtractor threshold: threshold of the bg/fg "
             << "segmentation" << endl;
-        cout << "\tarea difference threshold: if difference between current"
-            << " largest blob's area and next larget blob is greater than "
-            << " this value, do not consider any more blobs" << endl;
+        cout << "\tarea difference threshold: if next largest blob is x% "
+            << "less than the current largest blob, do not consider any "
+            << "more blobs" << endl;
         return 0;
     }
     
@@ -80,16 +84,16 @@ int main(int argc, char * argv[])
     cout << "\tBG Subtractor Threshold = " << bg_subtractor_threshold << endl;
     cout << "\tArea Difference Threshold = " << area_diff_thresh << endl;
     cout << endl;
+
+    // Set counter
+    ctr = 0;
     
     // Set up serial port
     serial_setup();
 
-    // Load face detection cascade
-    //initializeFaceDetection();
-
     // Open camera
-    CvCapture *capture = cvCaptureFromCAM(0);
-    //CvCapture *capture = cvCaptureFromFile("test_video.avi");
+    //CvCapture *capture = cvCaptureFromCAM(0);
+    CvCapture *capture = cvCaptureFromFile("4p-c0.avi");
 
     if (!capture) {
 	    cerr << "Error opening camera" << endl;
@@ -99,6 +103,10 @@ int main(int argc, char * argv[])
     // Resize window for faster processing
     cvSetCaptureProperty( capture, CV_CAP_PROP_FRAME_WIDTH, frame_width );
     cvSetCaptureProperty( capture, CV_CAP_PROP_FRAME_HEIGHT, frame_height );
+
+    // See actual window dimensions
+    unsigned int real_width = cvGetCaptureProperty(capture, CV_CAP_PROP_FRAME_WIDTH);
+    unsigned int real_height = cvGetCaptureProperty(capture, CV_CAP_PROP_FRAME_HEIGHT);
 
     // Initialize Video writer
     /*
@@ -112,13 +120,13 @@ int main(int argc, char * argv[])
     cvMoveWindow("motion_tracking", 0, 0);
     
     cvNamedWindow("fgmask", CV_WINDOW_AUTOSIZE);
-    cvMoveWindow("fgmask", frame_width, 0);
+    cvMoveWindow("fgmask", real_width, 0);
     
     //cvNamedWindow("bgimg", CV_WINDOW_AUTOSIZE);
-    //cvMoveWindow("bgimg", frame_width<<1, 0);
+    //cvMoveWindow("bgimg", real_width<<1, 0);
     
     //cvNamedWindow("facedetect", CV_WINDOW_AUTOSIZE);
-    //cvMoveWindow("facedetect", frame_width<<2, 0);
+    //cvMoveWindow("facedetect", real_width<<2, 0);
   
     // Grab capture from video
     cvGrabFrame(capture);
@@ -188,12 +196,18 @@ int main(int argc, char * argv[])
 
         // Consider at max only the 1/FRAC_BLOBS_TO_RENDER largest blobs
         // TODO what about the case of multiple people? 
-        CvBlobs blobs2;
+        CvBlobs largest_blobs;
         double cur_avg_x = 0;
         double cur_avg_y = 0;
         
+        // Now have a list of all the largest blobs. 
+        vector<CvBlobs> blob_buckets;
+        unsigned int added = 0;
+
         for (int i = 0; i < (blobList.size() * percentage)/100; i++) {
-            blobs2.insert(blobList[i]);
+            added = 0;
+
+            largest_blobs.insert(blobList[i]);
             cur_avg_x += /*(*blobList[i].second).area * */(*blobList[i].second).centroid.x;
             cur_avg_y += /*(*blobList[i].second).area * */(*blobList[i].second).centroid.y;
 
@@ -203,21 +217,109 @@ int main(int argc, char * argv[])
                 << (*blobList[i].second).minx << ", " << (*blobList[i].second).miny << "), ("
                 << (*blobList[i].second).maxx << ", " << (*blobList[i].second).maxy << ")"
                 << endl;
+        
+            // Look for multiple people: if blobs are close together, group them together
+            if (blob_buckets.size() == 0) {
+                CvBlobs new_list;
+                // Copies new_list and adds to back
+                blob_buckets.push_back(new_list);
+                (blob_buckets.back()).insert(blobList[i]);
+            }
+
+            else {
+                // Index of bucket that this blob should be added to
+                size_t bckt_ind = 0;
+                size_t bckt_cur_ind = 0;
+                // Current minimum distance to an existing blog
+                float bckt_min_dist_y = real_height/2;
+                bckt_min_dist_y *= bckt_min_dist_y;
+                float bckt_min_dist_x = real_width/8;
+                bckt_min_dist_x *= bckt_min_dist_x;
+                
+                vector<CvBlobs>::iterator it;
+
+                // Iterate through every bucket list
+                for (it = blob_buckets.begin(); it != blob_buckets.end(); it++) {
+                    // Iterate down every element of bucket list
+                    CvBlobs::iterator it2;
+                    for (it2 = (*it).begin(); it2 != (*it).end(); it2++) {
+                        float bckt_dist_sqrd;
+                        float bckt_x_sqrd;
+                        float bckt_y_sqrd;
+
+                        // calculate distance between current blob and all other blobs already bucketed
+                        bckt_x_sqrd = ((*(*it2).second).centroid.x - (*blobList[i].second).centroid.x);
+                        bckt_x_sqrd *= bckt_x_sqrd;
+                        bckt_y_sqrd = ((*(*it2).second).centroid.y - (*blobList[i].second).centroid.y);
+                        bckt_y_sqrd *= bckt_y_sqrd;
+
+                        bckt_dist_sqrd = bckt_x_sqrd + bckt_y_sqrd;
+
+                        cout << "bckt_x_sqrd " << bckt_x_sqrd << " < " << bckt_min_dist_x << endl;
+                        cout << "bckt_y_sqrd " << bckt_y_sqrd << " < " << bckt_min_dist_y << endl;
+
+                        // look for closeness in "x" first
+                        if (bckt_x_sqrd < bckt_min_dist_x) {
+                            if (bckt_y_sqrd < bckt_min_dist_y) {
+                                bckt_ind = bckt_cur_ind;
+                                bckt_min_dist_x = bckt_x_sqrd;
+                                bckt_min_dist_y = bckt_y_sqrd;
+                                added = 1;
+                            }
+                        }
+
+                        /*
+                        if (abs((*(*it2).second).centroid.x - (*blobList[i].second).centroid.x) < 100) {
+                            if (abs((*(*it2).second).centroid.y - (*blobList[i].second).centroid.y) < 100) {
+                                (*it).insert(blobList[i]);
+                                added = 1;
+                                break;
+                            }
+                        }
+                        */
+                    }
+
+                    bckt_cur_ind++;
+                }
+                // If never added
+                if (added == 0) {
+                    CvBlobs new_list;
+                    blob_buckets.push_back(new_list);
+                    (blob_buckets.back()).insert(blobList[i]);
+                }
+                else {
+                    cout << "bckt_ind: " << bckt_ind << endl;
+                    cout << "bckt_size: " << blob_buckets.size() << endl;
+                    blob_buckets[bckt_ind].insert(blobList[i]);
+                }
+            }
             
             // If the next blob is way smaller than this one, stop
+            /*
             if ((i != blobList.size()-1) && 
                 (((*blobList[i].second).area - (*blobList[i+1].second).area) > area_diff_thresh)) {
                 break;
             }
-        }
-        if (blobs2.size() != 0) {
-            cur_avg_x /= blobs2.size();
-            cur_avg_y /= blobs2.size();
+            */
+            // If the next blob is less than 30% of the current blob's size
+            // TODO specify a hard min area too...
+            if (i != blobList.size()-1) {
+                double area_percentage_diff = (double) (*blobList[i+1].second).area / (double) (*blobList[i].second).area;
+                printf("%d / %d = %f\n", (*blobList[i+1].second).area, (*blobList[i].second).area, area_percentage_diff);
+                if (area_percentage_diff < area_diff_thresh) {
+                    break;
+                }
+            }
         }
 
-        cout << "blobs used: " << blobs2.size() << endl;
+        if (largest_blobs.size() != 0) {
+            cur_avg_x /= largest_blobs.size();
+            cur_avg_y /= largest_blobs.size();
+        }
 
-        unsigned int unused_blob_ctr = blobs2.size();
+        cout << "blobs used: " << largest_blobs.size() << endl;
+
+        unsigned int unused_blob_ctr = largest_blobs.size();
 
         while ((unused_blob_ctr < 50) && (unused_blob_ctr < blobList.size())) {
             cout << "[UNUSED] blob area: " << (*blobList[unused_blob_ctr].second).area  
@@ -235,20 +337,49 @@ int main(int argc, char * argv[])
         */
 
         // Render blobs 
-        cvRenderBlobs(labelImg, blobs2, frame, frame, CV_BLOB_RENDER_BOUNDING_BOX);
+        //cvRenderBlobs(labelImg, largest_blobs, frame, frame, CV_BLOB_RENDER_BOUNDING_BOX);
 
-        // See if the average point has moved significantly enough to warrant a change.
+        vector<CvBlobs>::iterator it;
+        // Render blobs, and calculate average coordinates for each bucket list
+        if (ctr == 10) {
+        for (it = blob_buckets.begin(); it != blob_buckets.end(); it++) {
+            cvRenderBlobs(labelImg, *it, frame, frame, CV_BLOB_RENDER_BOUNDING_BOX);
+            
+            CvBlobs::iterator it2;
+            double sep_avg_x = 0;
+            double sep_avg_y = 0;
+
+            for (it2 = (*it).begin(); it2 != (*it).end(); it2++) {
+                sep_avg_x += (*(*it2).second).centroid.x;
+                sep_avg_y += (*(*it2).second).centroid.y;
+            }
+            if ((*it).size() != 0) {
+                sep_avg_x /= (*it).size();
+                sep_avg_y /= (*it).size();
+            }
+
+            cvCircle(frame, cvPoint(sep_avg_x, sep_avg_y), 5, CV_RGB(0, 0, 255), 3, 8, 0);
+        }
+
+        ctr = 0;
+        }
+        else {
+            ctr++;
+        }
+
         double x_diff = cur_avg_x - avg_x;
         double y_diff = cur_avg_y - avg_y;
         double dist_sqrd = x_diff * x_diff + y_diff * y_diff;
 
-        if (dist_sqrd > min_dist_sqrd_change) {
+        // First see if zero blobs were used: if so, retain last position
+        // Then see if the average point has moved significantly enough to warrant a change.
+        if ((largest_blobs.size() != 0) && (dist_sqrd > min_dist_sqrd_change)) {
             avg_x = cur_avg_x;
             avg_y = cur_avg_y;
         }
 
         // Draw avg point on frame
-        cvCircle(frame, cvPoint(avg_x, avg_y), 5, CV_RGB(0, 0, 255), 3, 8, 0);
+        //cvCircle(frame, cvPoint(avg_x, avg_y), 5, CV_RGB(0, 0, 255), 3, 8, 0);
 
         // face detection
         //detectAndDraw( img_mat );
@@ -264,9 +395,8 @@ int main(int argc, char * argv[])
         uint8_t ardu_coords = ((x_ardu & 0xf) << 4) | (y_ardu & 0xf);
         ardu << ardu_coords;
 
-        // Send all coordinates to arduino
         /*
-        for (CvBlobs::const_iterator it=blobs2.begin(); it != blobs2.end(); 
+        for (CvBlobs::const_iterator it=largest_blobs.begin(); it != largest_blobs.end(); 
             it++) {
             x_coord = cvRound(it->second->centroid.x);
             y_coord = cvRound(it->second->centroid.y);
@@ -286,7 +416,6 @@ int main(int argc, char * argv[])
             t/((double)cvGetTickFrequency()*1000.));
         
         cvShowImage("motion_tracking", frame);
-
         // Write to video
         //cvWriteFrame(writer, frame);
 
@@ -305,6 +434,10 @@ int main(int argc, char * argv[])
                 quit = true;
             break;
         }
+
+        if (ctr == 0) {
+            sleep(1);
+        }
     }
 
     cvReleaseImage(&frame);
@@ -312,8 +445,10 @@ int main(int argc, char * argv[])
     cvDestroyWindow("motion_tracking");
     cvReleaseCapture(&capture);
     // Release video writer
-    //if (writer)
-    //    cvReleaseVideoWriter(&writer);
+    /*
+    if (writer)
+        cvReleaseVideoWriter(&writer);
+    */
 
     return 0;
 }
