@@ -13,6 +13,9 @@
 #define EPSILON 200.0
 #define START 1
 
+// TODO 
+// may need export LD_LIBRARY_PATH=/usr/local/lib
+
 using namespace cvb;
 using namespace cv;
 using namespace std;
@@ -106,8 +109,8 @@ int main(int argc, char * argv[])
     serial_setup();
 
     // Open camera
-    //CvCapture *capture = cvCaptureFromCAM(0);
-    CvCapture *capture = cvCaptureFromFile(filename);
+    CvCapture *capture = cvCaptureFromCAM(0);
+    //CvCapture *capture = cvCaptureFromFile(filename);
 
     if (!capture) {
 	    cerr << "Error opening camera" << endl;
@@ -574,7 +577,7 @@ int main(int argc, char * argv[])
         // if there are coordinates to send
         if (prev_left_valid || prev_right_valid) {
         // send START bit
-        ardu << START;
+        //ardu << START;
 
         // compress left coordinates into a byte
         if (prev_left_valid) {
@@ -595,9 +598,6 @@ int main(int argc, char * argv[])
             right_y_ardu = (right_y_coord * 15) / 240;
 
             right_ardu_coords = ((right_x_ardu & 0xf) << 4) | (right_y_ardu & 0xf);
-
-            // send
-            ardu << right_ardu_coords;
         }
         
         // SEND FIRST COORDINATE
