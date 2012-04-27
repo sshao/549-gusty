@@ -128,9 +128,11 @@ int main(int argc, char * argv[])
         CV_CAP_PROP_FRAME_HEIGHT);
 
     // Initialize Video writer
+    /*
     CvVideoWriter *writer = NULL;
     writer = cvCreateVideoWriter("apr_27.avi", CV_FOURCC('x', 'v', 'i', 'd'),
         25, cvSize(frame_width, frame_height));
+    */
 
     // Create window to render blobs on
     cvNamedWindow("motion_tracking", CV_WINDOW_AUTOSIZE);
@@ -576,61 +578,60 @@ int main(int argc, char * argv[])
 
         // if there are coordinates to send
         if (prev_left_valid || prev_right_valid) {
-        // send START bit
-        //ardu << START;
 
-        // compress left coordinates into a byte
-        if (prev_left_valid) {
-            left_x_coord = cvRound(prev_left.first);
-            left_y_coord = cvRound(prev_left.second);
+            // compress left coordinates into a byte
+            if (prev_left_valid) {
+                left_x_coord = cvRound(prev_left.first);
+                left_y_coord = cvRound(prev_left.second);
 
-            left_x_ardu = (left_x_coord * 15) / 320;
-            left_y_ardu = (left_y_coord * 15) / 240;
+                left_x_ardu = (left_x_coord * 15) / 320;
+                left_y_ardu = (left_y_coord * 15) / 240;
 
-            left_ardu_coords = ((left_x_ardu & 0xf) << 4) | (left_y_ardu & 0xf);
-        }
-        // compress right coordinates into a byte
-        if (prev_right_valid) {
-            right_x_coord = cvRound(prev_right.first);
-            right_y_coord = cvRound(prev_right.second);
+                left_ardu_coords = ((left_x_ardu & 0xf) << 4) | 
+                    (left_y_ardu & 0xf);
+            }
+            // compress right coordinates into a byte
+            if (prev_right_valid) {
+                right_x_coord = cvRound(prev_right.first);
+                right_y_coord = cvRound(prev_right.second);
 
-            right_x_ardu = (right_x_coord * 15) / 320;
-            right_y_ardu = (right_y_coord * 15) / 240;
+                right_x_ardu = (right_x_coord * 15) / 320;
+                right_y_ardu = (right_y_coord * 15) / 240;
 
-            right_ardu_coords = ((right_x_ardu & 0xf) << 4) | (right_y_ardu & 0xf);
-        }
+                right_ardu_coords = ((right_x_ardu & 0xf) << 4) | 
+                    (right_y_ardu & 0xf);
+            }
         
-        // SEND FIRST COORDINATE
-        // if left is valid, send it
-        if (prev_left_valid) {
-            // send
-            ardu << left_ardu_coords;
-        }
-        // else, send the right coordinate twice
-        else {
-            ardu << right_ardu_coords;
-        }
+            // SEND FIRST COORDINATE
+            // if left is valid, send it
+            if (prev_left_valid) {
+                // send
+                ardu << left_ardu_coords;
+            }
+            // else, right coordinate is guaranteed to be valid so
+            // send the right coordinate twice
+            else {
+                ardu << right_ardu_coords;
+            }
+        
+            while (ardu.get() != 55) {
+                // stall and wait on arduino
+            }
 
-        // SEND SECOND COORDIANTE
-        // if right is valid, send it
-        if (prev_right_valid) {
-            ardu << right_ardu_coords;
-        }
-        // else, send the left coordinate twice
-        else {
-            ardu << left_ardu_coords;
-        }
+            // SEND SECOND COORDIANTE
+            // if right is valid, send it
+            if (prev_right_valid) {
+                ardu << right_ardu_coords;
+            }
+            // else, left coordinate is guaranteed to be valid so
+            // send the left coordinate again
+            else {
+                ardu << left_ardu_coords;
+            }
 
-        // cout << "Blob avg coordinates: (" << x_coord << ", " << y_coord << ")" << endl;
-
-        // TODO send STOP?
-
-        // TODO wait for 1 byte from arduino
-        /*
-        while (ardu.get() != 55) {
-            // stall
-        }
-        */
+            while (ardu.get() != 55) {
+                // stall and wait on arduino
+            }
 
         }
 
@@ -641,7 +642,9 @@ int main(int argc, char * argv[])
         cvShowImage("motion_tracking", frame);
 
         // Write to video
+        /*
         cvWriteFrame(writer, frame);
+        */
 
         // Release objects
         cvReleaseImage(&labelImg);
@@ -682,9 +685,11 @@ int main(int argc, char * argv[])
     cvDestroyWindow("motion_tracking");
     cvReleaseCapture(&capture);
 
+    /*
     // Release video writer
     if (writer)
         cvReleaseVideoWriter(&writer);
+    */
 
     return 0;
 }
