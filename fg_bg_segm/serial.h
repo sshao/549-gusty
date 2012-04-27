@@ -3,7 +3,7 @@
 
 #include <SerialStream.h>
 
-#define PORT "/dev/ttyACM0"
+#define PORT "/dev/ttyUSB0"
 #define BAUDRATE (SerialStreamBuf::BAUD_9600)
 
 using namespace LibSerial;
