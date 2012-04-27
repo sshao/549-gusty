@@ -125,11 +125,9 @@ int main(int argc, char * argv[])
         CV_CAP_PROP_FRAME_HEIGHT);
 
     // Initialize Video writer
-    /*
     CvVideoWriter *writer = NULL;
-    writer = cvCreateVideoWriter("out.avi", CV_FOURCC('x', 'v', 'i', 'd'),
+    writer = cvCreateVideoWriter("apr_27.avi", CV_FOURCC('x', 'v', 'i', 'd'),
         25, cvSize(frame_width, frame_height));
-    */
 
     // Create window to render blobs on
     cvNamedWindow("motion_tracking", CV_WINDOW_AUTOSIZE);
@@ -628,9 +626,11 @@ int main(int argc, char * argv[])
         // TODO send STOP?
 
         // TODO wait for 1 byte from arduino
+        /*
         while (ardu.get() != 55) {
             // stall
         }
+        */
 
         }
 
@@ -641,7 +641,7 @@ int main(int argc, char * argv[])
         cvShowImage("motion_tracking", frame);
 
         // Write to video
-        //cvWriteFrame(writer, frame);
+        cvWriteFrame(writer, frame);
 
         // Release objects
         cvReleaseImage(&labelImg);
@@ -678,16 +678,13 @@ int main(int argc, char * argv[])
     }
 
     cvReleaseImage(&frame);
-    cvReleaseImage(&img);
 
     cvDestroyWindow("motion_tracking");
     cvReleaseCapture(&capture);
 
-    /*
     // Release video writer
     if (writer)
         cvReleaseVideoWriter(&writer);
-    */
 
     return 0;
 }
