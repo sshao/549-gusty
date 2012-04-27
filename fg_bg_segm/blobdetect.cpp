@@ -613,6 +613,13 @@ int main(int argc, char * argv[])
             ardu << right_ardu_coords;
         }
 
+        cout << "FIRST OUT" << endl;
+        
+        // TODO wait for 1 byte from arduino
+        while (ardu.get() != 55) {
+            // stall
+        }
+
         // SEND SECOND COORDIANTE
         // if right is valid, send it
         if (prev_right_valid) {
@@ -626,6 +633,8 @@ int main(int argc, char * argv[])
         // cout << "Blob avg coordinates: (" << x_coord << ", " << y_coord << ")" << endl;
 
         // TODO send STOP?
+
+        cout << "SECOND OUT" << endl;
 
         // TODO wait for 1 byte from arduino
         while (ardu.get() != 55) {
