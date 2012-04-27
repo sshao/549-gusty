@@ -607,31 +607,43 @@ int main(int argc, char * argv[])
             if (prev_left_valid) {
                 // send
                 ardu << left_ardu_coords;
+                printf("sending: (%d, %d), ", left_ardu_coords >> 4,
+                    left_ardu_coords & 0xf);
             }
             // else, right coordinate is guaranteed to be valid so
             // send the right coordinate twice
             else {
                 ardu << right_ardu_coords;
+                printf("sending: (%d, %d), ", right_ardu_coords >> 4,
+                    right_ardu_coords & 0xf);
             }
         
+            /*
             while (ardu.get() != 55) {
                 // stall and wait on arduino
             }
+            */
 
             // SEND SECOND COORDIANTE
             // if right is valid, send it
             if (prev_right_valid) {
                 ardu << right_ardu_coords;
+                printf("(%d, %d)\n", right_ardu_coords >> 4,
+                    right_ardu_coords & 0xf);
             }
             // else, left coordinate is guaranteed to be valid so
             // send the left coordinate again
             else {
                 ardu << left_ardu_coords;
+                printf("(%d, %d)\n", left_ardu_coords >> 4,
+                    left_ardu_coords & 0xf);
             }
 
+            /*
             while (ardu.get() != 55) {
                 // stall and wait on arduino
             }
+            */
 
         }
 
