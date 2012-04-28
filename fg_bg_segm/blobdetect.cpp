@@ -360,7 +360,7 @@ int main(int argc, char * argv[])
 
         // Render blobs, and calculate average coordinates for each bucket list
         // on every 10th frame
-        if (ctr == 10) {
+        if (ctr == 5) {
 
             // Iterate through every bucket
             for (it = blob_buckets.begin(); it != blob_buckets.end(); it++) {
@@ -577,7 +577,7 @@ int main(int argc, char * argv[])
         uint8_t left_ardu_coords, right_ardu_coords;
 
         // if there are coordinates to send
-        if (prev_left_valid || prev_right_valid) {
+        if ((ctr == 0) && (prev_left_valid || prev_right_valid)) {
 
             // compress left coordinates into a byte
             if (prev_left_valid) {
@@ -601,94 +601,55 @@ int main(int argc, char * argv[])
                 right_ardu_coords = ((right_x_ardu & 0xf) << 4) | 
                     (right_y_ardu & 0xf);
             }
-        
-<<<<<<< HEAD
-        // SEND FIRST COORDINATE
-        // if left is valid, send it
-        if (prev_left_valid) {
-            // send
-            ardu << left_ardu_coords;
-        }
-        // else, send the right coordinate twice
-        else {
-            ardu << right_ardu_coords;
-        }
 
-        cout << "FIRST OUT" << endl;
-        
-        // TODO wait for 1 byte from arduino
-        while (ardu.get() != 55) {
-            // stall
-        }
-
-        // SEND SECOND COORDIANTE
-        // if right is valid, send it
-        if (prev_right_valid) {
-            ardu << right_ardu_coords;
-        }
-        // else, send the left coordinate twice
-        else {
-            ardu << left_ardu_coords;
-        }
-
-        // cout << "Blob avg coordinates: (" << x_coord << ", " << y_coord << ")" << endl;
-=======
             // SEND FIRST COORDINATE
             // if left is valid, send it
             if (prev_left_valid) {
                 // send
                 ardu << left_ardu_coords;
-                printf("sending: (%d, %d), ", left_ardu_coords >> 4,
+                printf("red: (%d, %d), ", left_ardu_coords >> 4,
                     left_ardu_coords & 0xf);
             }
             // else, right coordinate is guaranteed to be valid so
             // send the right coordinate twice
             else {
                 ardu << right_ardu_coords;
-                printf("sending: (%d, %d), ", right_ardu_coords >> 4,
+                printf("red: (%d, %d), ", right_ardu_coords >> 4,
                     right_ardu_coords & 0xf);
             }
         
-            /*
             while (ardu.get() != 55) {
                 // stall and wait on arduino
             }
-            */
->>>>>>> 2e627b2b7dddee21fee982b7f40c789e1fd77a8f
-
+                
             // SEND SECOND COORDIANTE
             // if right is valid, send it
             if (prev_right_valid) {
+                if (prev_left_valid) {
+                    sleep(1);
+                }
+            
                 ardu << right_ardu_coords;
-                printf("(%d, %d)\n", right_ardu_coords >> 4,
+                printf("green: (%d, %d)\n", right_ardu_coords >> 4,
                     right_ardu_coords & 0xf);
             }
             // else, left coordinate is guaranteed to be valid so
             // send the left coordinate again
             else {
                 ardu << left_ardu_coords;
-                printf("(%d, %d)\n", left_ardu_coords >> 4,
+                printf("green/red: (%d, %d)\n", left_ardu_coords >> 4,
                     left_ardu_coords & 0xf);
             }
 
-<<<<<<< HEAD
-        cout << "SECOND OUT" << endl;
-
-        // TODO wait for 1 byte from arduino
-        while (ardu.get() != 55) {
-            // stall
-        }
-=======
-            /*
             while (ardu.get() != 55) {
-                // stall and wait on arduino
+                // stall
             }
-            */
->>>>>>> 2e627b2b7dddee21fee982b7f40c789e1fd77a8f
-
         }
 
         t = (double) cvGetTickCount() - t;
+        if (ctr==0) {
+            printf("sending ");
+        }
         printf( "total frame processing time = %g ms\n",
             t/((double)cvGetTickFrequency()*1000.));
         
